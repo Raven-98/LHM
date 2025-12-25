@@ -368,18 +368,28 @@ class AppEngine(QObject):
         except PermissionError:
             try:
                 p = subprocess.run(
-                    ["pkexec", sys.executable, str(Path(__file__).resolve()), "--write-hosts", str(self._hosts.path())],
+                    [
+                        "/usr/bin/pkexec",
+                        sys.executable,
+                        str(Path(__file__).resolve()),
+                        "--write-hosts",
+                        str(self._hosts.path())
+                    ],
                     input=content,
                     text=True,
                     capture_output=True,
                 )
             except FileNotFoundError:
-                self.errorOccurred.emit("Не знайдено pkexec. Встанови пакет polkit (pkexec) або запускай через sudo/pkexec.")
+                self.errorOccurred.emit(
+                    "Не знайдено pkexec. Встанови пакет polkit (pkexec) "
+                    "або запускай через sudo/pkexec.")
                 return
 
             if p.returncode != 0:
                 err = (p.stderr or "").strip()
-                self.errorOccurred.emit("Не вдалося застосувати зміни через pkexec." + (f" Деталі: {err}" if err else ""))
+                self.errorOccurred.emit(
+                    "Не вдалося застосувати зміни через pkexec."
+                    + (f" Деталі: {err}" if err else ""))
                 return
 
         self._snapshot = self._model.entries_snapshot()
@@ -404,13 +414,6 @@ if __name__ == "__main__":
 
     app = QGuiApplication(sys.argv)
 
-    # ===> demo дані <===
-    # model = HostsModel([
-    #     HostEntry(True,  "10.0.0.5",  "api.work auth.work"),
-    #     HostEntry(False, "10.0.0.6",  "auth.work"),
-    #     HostEntry(True,  "127.0.0.1", "local.dev"),
-    # ])
-    # ===> <===
     model = HostsModel()
     appEngine = AppEngine(model)
 
