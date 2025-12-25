@@ -1,0 +1,14 @@
+[project]
+name = "LHM"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.10",
+]
+authors = [
+    {name = "Andrii Sheiko", email = "andriy1898k@gmail.com"},
+]
+license = {text = "GPL-3.0-only"}
+
+[tool.pyside6-project]
+files = ["main.py", "main.qml"]
