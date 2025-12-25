@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 ApplicationWindow {
     width: 900
@@ -12,6 +13,8 @@ ApplicationWindow {
         target: appEngine
         function onErrorOccurred(msg) {
                 console.error(msg)
+                errorDialog.errorText = msg
+                errorDialog.open()
             }
     }
 
@@ -138,6 +141,21 @@ ApplicationWindow {
                 enabled: appEngine && appEngine.dirty
                 onClicked: appEngine && appEngine.apply()
             }
+        }
+    }
+
+    Dialog {
+        id: errorDialog
+        title: "Error"
+        modal: true
+        standardButtons: Dialog.Ok
+
+        property string errorText: ""
+
+        contentItem: Label {
+            text: errorDialog.errorText
+            wrapMode: Text.WordWrap
+            width: Math.min(700, parent ? parent.width : 700)
         }
     }
 }
