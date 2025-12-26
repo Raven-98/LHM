@@ -10,9 +10,6 @@ from dataclasses import dataclass
 
 from pathlib import Path
 
-from typing import List
-from typing import Tuple
-
 from PySide6.QtCore import QAbstractListModel
 from PySide6.QtCore import QObject
 from PySide6.QtCore import Signal
@@ -36,8 +33,8 @@ class HostEntry:
 
 @dataclass
 class HostsFileState:
-    pre_lines: List[str]
-    post_lines: List[str]
+    pre_lines: list[str]
+    post_lines: list[str]
 
 
 class HostsFileManager:
@@ -52,7 +49,10 @@ class HostsFileManager:
     def path(self) -> Path:
         return self._path
 
-    def load_managed_block(self) -> Tuple[List[HostEntry], HostsFileState]:
+    def template(self) -> Path:
+        return self._path.parent / f".{self._path.name}_XXXXXX"
+
+    def load_managed_block(self) -> tuple[list[HostEntry], HostsFileState]:
         """
         Читає /etc/hosts, повертає:
           - entries з керованого блоку
@@ -60,7 +60,7 @@ class HostsFileManager:
         Якщо маркерів немає — entries=[], state.pre_lines=весь файл, state.post_lines=[]
         """
         text: str = self._path.read_text(encoding="utf-8", errors="replace")
-        lines: List[str] = text.splitlines(keepends=True)
+        lines: list[str] = text.splitlines(keepends=True)
 
         begin_idx: int = -1
         end_idx: int = -1
@@ -79,11 +79,11 @@ class HostsFileManager:
         if begin_idx == -1 or end_idx == -1 or end_idx < begin_idx:
             return [], HostsFileState(pre_lines=lines, post_lines=[])
 
-        pre_lines: List[str] = lines[:begin_idx]
-        managed_lines: List[str] = lines[begin_idx + 1 : end_idx]
-        post_lines: List[str] = lines[end_idx + 1 :]
+        pre_lines: list[str] = lines[:begin_idx]
+        managed_lines: list[str] = lines[begin_idx + 1 : end_idx]
+        post_lines: list[str] = lines[end_idx + 1 :]
 
-        entries: List[HostEntry] = []
+        entries: list[HostEntry] = []
         for ln in managed_lines:
             e: HostEntry | None = self._parse_entry_line(ln)
             if e is not None:
@@ -92,27 +92,17 @@ class HostsFileManager:
         return entries, HostsFileState(pre_lines=pre_lines, post_lines=post_lines)
 
     def build_content(self, state: HostsFileState,
-                            entries: List[HostEntry]) -> str:
-        pre: List[str] = list(state.pre_lines)
-        post: List[str] = list(state.post_lines)
+                            entries: list[HostEntry]) -> str:
+        pre: list[str] = list(state.pre_lines)
+        post: list[str] = list(state.post_lines)
 
         if pre and not pre[-1].endswith("\n"):
             pre[-1] = pre[-1] + "\n"
         if pre and pre[-1].strip() != "":
             pre.append("\n")
 
-        block: List[str] = self._render_managed_block(entries)
+        block: list[str] = self._render_managed_block(entries)
         return "".join(pre + block + post)
-
-    def write_with_managed_block(self, state: HostsFileState,
-                                       entries: List[HostEntry]) -> None:
-        """
-        Записує /etc/hosts, зберігаючи pre_lines/post_lines і вставляючи керований блок.
-        Якщо блок раніше не існував (state.post_lines == [] і markers не знайдено),
-        він буде доданий у кінець pre_lines.
-        """
-        content: str = self.build_content(state, entries)
-        self._atomic_write(content)
 
     def _parse_entry_line(self, raw: str) -> HostEntry | None:
         """
@@ -136,7 +126,7 @@ class HostsFileManager:
         if not s:
             return None
 
-        parts: List[str] = s.split()
+        parts: list[str] = s.split()
         if len(parts) < 2:
             return None
 
@@ -153,8 +143,8 @@ class HostsFileManager:
         left, _hash, _right = s.partition("#")
         return left.rstrip()
 
-    def _render_managed_block(self, entries: List[HostEntry]) -> List[str]:
-        out: List[str] = []
+    def _render_managed_block(self, entries: list[HostEntry]) -> list[str]:
+        out: list[str] = []
         out.append(self.BEGIN_MARKER + "\n")
 
         for e in entries:
@@ -166,7 +156,7 @@ class HostsFileManager:
         out.append(self.END_MARKER + "\n")
         return out
 
-    def _atomic_write(self, content: str) -> None:
+    def atomic_write(self, content: str) -> None:
         dir_path: str = str(self._path.parent)
 
         st = None
@@ -203,7 +193,7 @@ class HostsModel(QAbstractListModel):
     IpRole = Qt.UserRole + 2
     HostsRole = Qt.UserRole + 3
 
-    def __init__(self, entries: List[HostEntry] | None = None,
+    def __init__(self, entries: list[HostEntry] | None = None,
                        parent: QObject | None = None):
         super().__init__(parent)
         self._entries = list(entries or [])
@@ -292,14 +282,14 @@ class HostsModel(QAbstractListModel):
     def _row_ok(self, row: int) -> bool:
         return 0 <= row < len(self._entries)
 
-    def entries_snapshot(self) -> List[HostEntry]:
+    def entries_snapshot(self) -> list[HostEntry]:
         return [
             HostEntry(e.enabled, e.ip, e.hosts)
             for e in self._entries
             if not self._is_empty_entry(e)
         ]
 
-    def set_entries(self, entries: List[HostEntry]):
+    def set_entries(self, entries: list[HostEntry]):
         self.beginResetModel()
         self._entries = list(entries)
         self._ensure_trailing_empty()
@@ -324,7 +314,6 @@ class HostsModel(QAbstractListModel):
                 self.endRemoveRows()
                 continue
             i += 1
-
 
 
 class AppEngine(QObject):
@@ -364,16 +353,18 @@ class AppEngine(QObject):
         content = self._hosts.build_content(self._state, entries)
 
         try:
-            self._hosts._atomic_write(content)
+            self._hosts.atomic_write(content)
         except PermissionError:
             try:
                 p = subprocess.run(
                     [
                         "/usr/bin/pkexec",
-                        sys.executable,
-                        str(Path(__file__).resolve()),
-                        "--write-hosts",
-                        str(self._hosts.path())
+                        "/bin/sh",
+                        "-c",
+                        fr'tmp="$(mktemp { str(self._hosts.template()) })" && '
+                        r'cat > "$tmp" && '
+                        r'chown root:root "$tmp" && chmod 0644 "$tmp" && '
+                        fr'mv -f "$tmp" { str(self._hosts.path()) }'
                     ],
                     input=content,
                     text=True,
@@ -397,21 +388,11 @@ class AppEngine(QObject):
 
     @Slot()
     def revert(self):
-        print("REVERT")
         self._model.set_entries(self._snapshot)
         self._set_dirty(False)
 
 
-def _privileged_write_hosts(dst_path: str) -> int:
-    content = sys.stdin.read()
-    HostsFileManager(dst_path)._atomic_write(content)
-    return 0
-
-
 if __name__ == "__main__":
-    if len(sys.argv) >= 3 and sys.argv[1] == "--write-hosts":
-        raise SystemExit(_privileged_write_hosts(sys.argv[2]))
-
     app = QGuiApplication(sys.argv)
 
     model = HostsModel()

@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 ApplicationWindow {
+    id: appWin
     width: 900
     height: 550
     visible: true
@@ -12,6 +14,8 @@ ApplicationWindow {
         target: appEngine
         function onErrorOccurred(msg) {
                 console.error(msg)
+                errorDialog.text = msg
+                errorDialog.open()
             }
     }
 
@@ -139,5 +143,10 @@ ApplicationWindow {
                 onClicked: appEngine && appEngine.apply()
             }
         }
+    }
+
+    MessageDialog {
+        id: errorDialog
+        title: qsTr("Error")
     }
 }
