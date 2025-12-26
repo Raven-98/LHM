@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 
 ApplicationWindow {
+    id: appWin
     width: 900
     height: 550
     visible: true
@@ -13,7 +14,7 @@ ApplicationWindow {
         target: appEngine
         function onErrorOccurred(msg) {
                 console.error(msg)
-                errorDialog.errorText = msg
+                errorDialog.text = msg
                 errorDialog.open()
             }
     }
@@ -144,18 +145,8 @@ ApplicationWindow {
         }
     }
 
-    Dialog {
+    MessageDialog {
         id: errorDialog
-        title: "Error"
-        modal: true
-        standardButtons: Dialog.Ok
-
-        property string errorText: ""
-
-        contentItem: Label {
-            text: errorDialog.errorText
-            wrapMode: Text.WordWrap
-            width: Math.min(700, parent ? parent.width : 700)
-        }
+        title: qsTr("Error")
     }
 }
