@@ -49,6 +49,9 @@ class HostsFileManager:
     def path(self) -> Path:
         return self._path
 
+    def template(self) -> Path:
+        return self._path.parent / f".{self._path.name}_XXXXXX"
+
     def load_managed_block(self) -> tuple[list[HostEntry], HostsFileState]:
         """
         Читає /etc/hosts, повертає:
@@ -358,10 +361,10 @@ class AppEngine(QObject):
                         "/usr/bin/pkexec",
                         "/bin/sh",
                         "-c",
-                        r'tmp="$(mktemp /etc/.hosts_XXXXXX)" && '
+                        fr'tmp="$(mktemp { str(self._hosts.template()) })" && '
                         r'cat > "$tmp" && '
                         r'chown root:root "$tmp" && chmod 0644 "$tmp" && '
-                        r'mv -f "$tmp" /etc/hosts'
+                        fr'mv -f "$tmp" { str(self._hosts.path()) }'
                     ],
                     input=content,
                     text=True,
