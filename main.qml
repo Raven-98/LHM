@@ -10,6 +10,62 @@ ApplicationWindow {
     visible: true
     title: "LHM"
 
+    property var contextField: null
+
+    function showValidationError(msg) {
+        errorDialog.title = "Помилка"
+        errorDialog.text = msg
+        errorDialog.open()
+    }
+
+    function isValidIp(value) {
+        if (value.length === 0) {
+            return true
+        }
+        const ipv4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
+        if (ipv4.test(value)) {
+            return true
+        }
+        const ipv6 = /^[0-9a-fA-F:]+$/
+        return value.indexOf(":") !== -1 && ipv6.test(value)
+    }
+
+    function isValidHostname(host) {
+        if (host.length === 0 || host.length > 253) {
+            return false
+        }
+        const labels = host.split(".")
+        const labelRe = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
+        for (let i = 0; i < labels.length; i += 1) {
+            const label = labels[i]
+            if (!labelRe.test(label)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function isValidHostList(value) {
+        const trimmed = value.trim()
+        if (trimmed.length === 0) {
+            return true
+        }
+        const parts = trimmed.split(/\s+/)
+        for (let i = 0; i < parts.length; i += 1) {
+            if (!isValidHostname(parts[i])) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function openEditMenu(field, x, y) {
+        contextField = field
+        editMenu.x = x
+        editMenu.y = y
+        editMenu.open()
+    }
+
     Connections {
         target: appEngine
         function onErrorOccurred(msg) {
@@ -85,16 +141,52 @@ ApplicationWindow {
                         text: model.ip
                         Layout.preferredWidth: 200
                         selectByMouse: true
-                        onEditingFinished: hostsModel.setIp(index, text)
+                        onEditingFinished: {
+                            const v = text.trim()
+                            if (!isValidIp(v)) {
+                                showValidationError("Некоректна IP-адреса.")
+                                text = model.ip
+                                return
+                            }
+                            text = v
+                            hostsModel.setIp(index, v)
+                        }
                         Layout.alignment: Qt.AlignVCenter
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.RightButton
+                            onClicked: (mouse) => {
+                                const pos = parent.mapToItem(appWin.contentItem, mouse.x, mouse.y)
+                                openEditMenu(parent, pos.x, pos.y)
+                            }
+                        }
                     }
 
                     TextField {
                         text: model.hosts
                         Layout.fillWidth: true
                         selectByMouse: true
-                        onEditingFinished: hostsModel.setHosts(index, text)
+                        onEditingFinished: {
+                            const v = text.trim()
+                            if (!isValidHostList(v)) {
+                                showValidationError("Некоректні імена хостів. Використовуй латиницю, цифри, дефіси та крапки.")
+                                text = model.hosts
+                                return
+                            }
+                            text = v
+                            hostsModel.setHosts(index, v)
+                        }
                         Layout.alignment: Qt.AlignVCenter
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.RightButton
+                            onClicked: (mouse) => {
+                                const pos = parent.mapToItem(appWin.contentItem, mouse.x, mouse.y)
+                                openEditMenu(parent, pos.x, pos.y)
+                            }
+                        }
                     }
                 }
 
@@ -115,11 +207,11 @@ ApplicationWindow {
 
     footer: Rectangle {
         Layout.fillWidth: true
-        implicitHeight: footerСontent.implicitHeight + 20
+        implicitHeight: footerContent.implicitHeight + 20
         color: "#1e1e1e"
 
         RowLayout {
-            id: footerСontent
+            id: footerContent
             anchors.fill: parent
             anchors.margins: 10
 
@@ -148,5 +240,32 @@ ApplicationWindow {
     MessageDialog {
         id: errorDialog
         title: qsTr("Error")
+    }
+
+    Menu {
+        id: editMenu
+
+        MenuItem {
+            text: "Вирізати"
+            enabled: appWin.contextField && !appWin.contextField.readOnly && appWin.contextField.selectedText.length > 0
+            onTriggered: appWin.contextField && appWin.contextField.cut()
+        }
+        MenuItem {
+            text: "Копіювати"
+            enabled: appWin.contextField && appWin.contextField.selectedText.length > 0
+            onTriggered: appWin.contextField && appWin.contextField.copy()
+        }
+        MenuItem {
+            text: "Вставити"
+            enabled: appWin.contextField && !appWin.contextField.readOnly
+            onTriggered: appWin.contextField && appWin.contextField.paste()
+        }
+        MenuItem {
+            text: "Виділити все"
+            enabled: appWin.contextField
+                     && !(appWin.contextField.selectionStart === 0
+                          && appWin.contextField.selectionEnd === appWin.contextField.length)
+            onTriggered: appWin.contextField && appWin.contextField.selectAll()
+        }
     }
 }
